@@ -1,112 +1,83 @@
 /* ---------- Config ---------- */
-const RPC_URL   = "https://testnet-rpc.monad.xyz";
-const CHAIN_HEX = "0x279F";
-const CHAIN_ID  = 10143;
-const MARKET    = "0xa4c519b1d2b28ae33a9d3d345c676725e642c99d";
-const RELAY     = "0x1f12d8349c9101b304949d8b285b49aDe76e38E7";
-const NFT       = "0x66fb1b5733A1A719e57022247A1CD9F4Ed73B1FB";
-const SIZE_MON  = "0.1";
+const RPC_URL    = "https://testnet-rpc.monad.xyz";
+const CHAIN_ID   = 10143;                    // 0x279F
+const SWAP_MINT  = "0xD4C86d1f711A8E080f55197e7B5E0b988D087eED";
+const NFT        = "0x66fb1b5733A1A719e57022247A1CD9F4Ed73B1FB";
+const WL_PRICE   = "0.01";                   // MON (18dec)
+const FCFS_PRICE = "0.1";
+const PUB_PRICE  = "1";
 
+/* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
-const rpcProv = new ethers.providers.JsonRpcProvider(RPC_URL);
+const { ethers }   = window;                                 // ethers v6  ✔
+const { createWalletClient, custom } = window.viem;          // viem CDN ✔ :contentReference[oaicite:4]{index=4}
+const { StandardMerkleTree }        = window.viem;           // re-export from viem
 
-let signer, relay, KuruSdk;
+/* ---------- wallet setup ---------- */
+let signer, walletClient;
+const web3Modal = new window.Web3Modal.default({              // v2
+  cacheProvider:false,
+  walletConnectProjectId:"demo"                               // ← 独自プロジェクト ID 推奨
+});
 
-/* ---------- SDK v0.0.45 ---------- */
-(async () => {
-  KuruSdk = await import("https://esm.sh/@kuru-labs/kuru-sdk@0.0.45?bundle");
-  const nft = new ethers.Contract(NFT,["function totalSupply() view returns(uint256)"],rpcProv);
+$("connectWalletBtn").onclick = async () => {
+  const ext  = await web3Modal.connect();
+  const prov = new ethers.BrowserProvider(ext, "any");        // v6 API
+  signer       = await prov.getSigner();
+  walletClient = createWalletClient({                         // viem walletClient (tx送信) :contentReference[oaicite:5]{index=5}
+    chain:  { id: CHAIN_ID },
+    account: signer,
+    transport: custom(ext)
+  });
+
+  $("walletStatus").textContent = `Connected: ${await signer.getAddress()}`;
+  $("disconnectBtn").style.display="inline-block";
+  $("mintBtn").disabled=false;
+
+  /* 表示用 – 現在の totalSupply */
+  const nft = new ethers.Contract(NFT,["function totalSupply() view returns(uint256)"],prov);
   $("mintedSoFar").textContent = (await nft.totalSupply()).toString();
-})().catch(console.error);
+};
 
-/* ---------- Web3Modal (UI だけ追加) ---------- */
-const providerOptions = {
-  injected:{
-    package:null,
-    display:{
-      name:"MetaMask",
-      description:"Browser Wallet",
-      /* Fox SVG to avoid ruby icon */                       // :contentReference[oaicite:1]{index=1}
-      logo:"metamask-fox.svg"
-    }
-  },
-  walletconnect:{
-    package:window.WalletConnectProvider.default,
-    options:{
-      rpc:{[CHAIN_ID]:RPC_URL},
-      /* QR + 一覧 */                                         // :contentReference[oaicite:2]{index=2}
-      qrcodeModalOptions:{
-        mobileLinks:["metamask","trust","rainbow","argent","imtoken"],
-        desktopLinks:["metamask","ledger","zerion"]
-      }
-    }
+$("disconnectBtn").onclick = () => location.reload();
+
+/* ---------- proof helper ---------- */
+async function getProof(phaseId){
+  const file = phaseId===0 ? "proofs/wl_proofs.json"
+            : phaseId===1 ? "proofs/fcfs_proofs.json"
+            : null;
+  if(!file) return [];            // PUB
+
+  const dump  = await fetch(file).then(r=>r.json());
+  const tree  = StandardMerkleTree.load(dump);                // browser OK :contentReference[oaicite:6]{index=6}
+  const addr  = (await signer.getAddress()).toLowerCase();
+
+  for(const [i,v] of tree.entries()){
+    if(v[0].toLowerCase()===addr) return tree.getProof(i);
   }
-};
-const web3Modal = new window.Web3Modal.default({providerOptions,cacheProvider:false});
-
-/* ---------- Connect ---------- */
-$("connectWalletBtn").onclick = async ()=>{
-  try{
-    const ext = await web3Modal.connect();
-    ext.on("disconnect",disconnect);
-
-    signer = (new ethers.providers.Web3Provider(ext,"any")).getSigner();
-    relay  = new ethers.Contract(
-      RELAY,
-      ["function forwardAndMint(address,bytes,address) payable returns(uint256)",
-       "event ForwardAndMint(address indexed,address indexed,uint256,uint256)"],
-      signer);
-
-    const addr = await signer.getAddress();
-    $("walletStatus").textContent=`Connected: ${addr.slice(0,6)}…${addr.slice(-4)}`;
-    $("disconnectBtn").style.display="inline-block";
-    $("mintBtn").disabled=false;
-  }catch(e){console.error(e);}
-};
-
-/* ---------- Disconnect ---------- */
-function disconnect(){
-  web3Modal.clearCachedProvider();                               // :contentReference[oaicite:3]{index=3}
-  signer = relay = null;
-  $("walletStatus").textContent="Wallet not connected";
-  $("disconnectBtn").style.display="none";
-  $("mintBtn").disabled=true;
-}
-$("disconnectBtn").onclick = disconnect;
-
-/* ---------- Market TX (変えていません) ---------- */
-async function buildMarketTx(){
-  const params = await KuruSdk.ParamFetcher.getMarketParams(rpcProv, MARKET);
-  let captured;
-  const orig = signer.sendTransaction.bind(signer);
-  signer.sendTransaction = async tx=>{captured=tx;return {hash:"0x0",wait:async()=>({status:1})};};
-
-  try{
-    await KuruSdk.IOC.placeMarket(
-      signer,MARKET,params,
-      { size:SIZE_MON, minAmountOut:"0", isBuy:true,
-        fillOrKill:true,approveTokens:true,isMargin:false });
-  }finally{ signer.sendTransaction = orig; }
-
-  if(!captured?.data) throw new Error("swap TX not captured");
-  return {to:captured.to,data:captured.data,value:captured.value||ethers.BigNumber.from(0)};
+  throw new Error("Not in whitelist");
 }
 
-/* ---------- Mint + Buy (変えていません) ---------- */
-$("mintBtn").onclick = async ()=>{
-  $("mintBtn").disabled=true;$("mintBtn").textContent="Sending…";
+/* ---------- mint flow ---------- */
+$("mintBtn").onclick = async () => {
   try{
-    const u  = await buildMarketTx();
-    const tx = await relay.forwardAndMint(u.to,u.data,await signer.getAddress(),{value:u.value});
-    $("mintBtn").textContent="Pending…";
-    const rc = await tx.wait();
+    const phaseId = 0;                         // ← UI 選択式なら書き換え
+    const mon     = phaseId===0 ? WL_PRICE : phaseId===1 ? FCFS_PRICE : PUB_PRICE;
+    const tokenCost = ethers.parseEther(mon);
+    const proof   = await getProof(phaseId);
 
-    const iface=new ethers.utils.Interface(["event ForwardAndMint(address,address,uint256,uint256)"]);
-    const log  = rc.logs.find(l=>l.address.toLowerCase()===RELAY.toLowerCase());
-    const {tokenId}=iface.parseLog(log).args;
-
-    alert(`✅ Minted! tokenId=${tokenId}\nTx ➜ https://testnet.monadexplorer.com/tx/${tx.hash}`);
-    $("mintedSoFar").textContent=(+$("mintedSoFar").textContent+1).toString();
-  }catch(e){console.error(e);alert(e.message||"Error");}
+    const txHash = await walletClient.writeContract({
+      address: SWAP_MINT,
+      abi:      [                                     // buyAndMint(…)
+        "function buyAndMint(uint8,uint16,uint256,bytes32[]) payable"
+      ],
+      functionName: "buyAndMint",
+      args: [phaseId, 300, tokenCost, proof],         // slippageBps=300
+      value: tokenCost
+    });
+    $("mintBtn").disabled=true;$("mintBtn").textContent="Pending…";
+    await walletClient.waitForTransactionReceipt({ hash: txHash });
+    alert(`✅ Success!\nTx: https://testnet.monadexplorer.com/tx/${txHash}`);
+  }catch(e){ window.showFatal(e,"mint"); }
   finally{ $("mintBtn").disabled=false;$("mintBtn").textContent="Mint Now"; }
 };
