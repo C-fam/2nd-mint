@@ -1,138 +1,109 @@
-/* -------------------------------------------------
- *  Config ― EDIT ME
- * ------------------------------------------------*/
-const RPC_URL   = "https://testnet-rpc.monad.xyz";
-const CHAIN_ID  = 10143; // 0x279F
-const SWAP_MINT = "0xD4C86d1f711A8E080f55197e7B5E0b988D087eED";
-const NFT_ADDR  = "0x66fb1b5733A1A719e57022247A1CD9F4Ed73B1FB";
+/* ---------- Config ---------- */
+const RPC_URL  = "https://testnet-rpc.monad.xyz";
+const CHAIN_ID = 10143;
+const SWAPMINT = "0xD4C86d1f711A8E080f55197e7B5E0b988D087eED";
+const NFT_ADDR = "0x66fb1b5733A1A719e57022247A1CD9F4Ed73B1FB";   // ← 実 NFT コントラクト
+const PHASE_JSON = [
+  { price: "0.01", cap: 100,  dump: () => import('../proofs/wl_proofs.json' , { assert:{type:'json'}}) },
+  { price: "0.10", cap:  40,  dump: () => import('../proofs/fcfs_proofs.json',{ assert:{type:'json'}}) },
+  { price: "1.00", cap:  10,  dump: () => Promise.resolve(null) }              // Public: no proof
+];
 
-const WL_PRICE   = "0.01";
-const FCFS_PRICE = "0.1";
-const PUB_PRICE  = "1";
+/* ---------- Imports ---------- */
+import { createPublicClient, createWalletClient, http, parseEther } from 'viem';
+import { walletActions } from 'viem/actions';
+import { injectedProvider } from 'viem/providers/injected';
+import SwapMintAbi from './SwapMint.abi.json' assert { type:'json' };
+import NftAbi      from './Nft.abi.json'      assert { type:'json' };
+import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 
-/* WalletConnect Cloud で取得した projectId を設定 */
-const WC_PROJECT_ID = "YOUR_WALLETCONNECT_CLOUD_PROJECT_ID";
-
-/* -------------------------------------------------
- *  CDN imports (ESM)
- * ------------------------------------------------*/
-import * as ethers from 'https://esm.sh/ethers@6.8.1?bundle';
-import {
-  createWalletClient,
-  custom
-} from 'https://esm.sh/viem@2.29.4?bundle';
-import { StandardMerkleTree } from 'https://esm.sh/@openzeppelin/merkle-tree@1.0.8';
-
-/* -------------------------------------------------
- *  DOM helpers
- * ------------------------------------------------*/
+/* ---------- Shortcuts ---------- */
 const $ = id => document.getElementById(id);
 
-/* -------------------------------------------------
- *  Web3Modal v2 インスタンス
- * ------------------------------------------------*/
-const web3Modal = window.Web3Modal({
-  projectId: WC_PROJECT_ID,
-  walletProviders: [
-    'walletConnect', 'metamask', 'rabby', 'phantom',
-    'rainbow', 'trust', 'okx', 'safepal', 'coinbase'
-  ],
-  cacheProvider: false,
-  themeMode: 'dark'
-});
+/* ---------- viem clients ---------- */
+const publicClient = createPublicClient({ chain:{id:CHAIN_ID}, transport:http(RPC_URL) });
+let   walletClient;
 
-/* -------------------------------------------------
- *  Global state
- * ------------------------------------------------*/
-let signer;
-let walletClient;
-const rpcProvider = new ethers.JsonRpcProvider(RPC_URL);
+/* ---------- Global UI state ---------- */
+let currentPhase = 0, proofCache = null;
 
-/* -------------------------------------------------
- *  初期化 – totalSupply 表示
- * ------------------------------------------------*/
-(async () => {
-  const nft = new ethers.Contract(
-    NFT_ADDR,
-    ["function totalSupply() view returns(uint256)"],
-    rpcProvider
-  );
-  $("mintedSoFar").textContent = (await nft.totalSupply()).toString();
-})().catch(console.error);
+/* ---------- Wallet connect/disconnect ---------- */
+$('connectBtn').onclick = async () => {
+  walletClient = createWalletClient({
+    chain:{ id:CHAIN_ID }, transport: injectedProvider()
+  }).extend(walletActions);
+  await walletClient.switchChain({ id:CHAIN_ID });
+  const [addr] = await walletClient.getAddresses();
 
-/* -------------------------------------------------
- *  Connect / Disconnect
- * ------------------------------------------------*/
-$("connectWalletBtn").onclick = async () => {
-  try{
-    const ext = await web3Modal.connect();
-    signer    = (new ethers.BrowserProvider(ext, "any")).getSigner();
+  $('walletStatus').textContent = `Connected: ${addr.slice(0,6)}…${addr.slice(-4)}`;
+  $('connectBtn').style.display='none';
+  $('disconnectBtn').style.display='inline-block';
+  $('mintBtn').disabled=false;
 
-    walletClient = createWalletClient({
-      chain:   { id: CHAIN_ID },
-      account: signer,
-      transport: custom(ext)
-    });
-
-    const addr = await signer.getAddress();
-    $("walletStatus").textContent =
-      `Connected: ${addr.slice(0,6)}…${addr.slice(-4)}`;
-    $("disconnectBtn").style.display = "inline-block";
-    $("mintBtn").disabled = false;
-  }catch(e){ window.showFatal(e,"connect"); }
+  await refreshMinted();
+  await updatePhaseUI();
 };
 
-$("disconnectBtn").onclick = () => location.reload();
+$('disconnectBtn').onclick = () => location.reload();
 
-/* -------------------------------------------------
- *  Proof helper
- * ------------------------------------------------*/
-async function getProof(phaseId){
-  const file =
-    phaseId===0 ? "proofs/wl_proofs.json"  :
-    phaseId===1 ? "proofs/fcfs_proofs.json": null;
-  if(!file) return [];           // PUB
+/* ---------- Phase selector ---------- */
+document.querySelectorAll('input[name="phase"]').forEach(r =>
+  r.onchange = async () => {
+    currentPhase = Number(r.value);
+    await updatePhaseUI();
+  });
 
-  const dump = await fetch(file).then(r=>r.json());
-  const tree = StandardMerkleTree.load(dump);
+/* ---------- Update UI for phase ---------- */
+async function updatePhaseUI(){
+  const phase = PHASE_JSON[currentPhase];
+  $('priceMon'  ).textContent = phase.price;
+  $('cap'       ).textContent = phase.cap;
+  $('proofInfo' ).textContent = 'Proof: checking…';
+  proofCache = [];                                               // reset
 
-  const addr = (await signer.getAddress()).toLowerCase();
-  for(const [i,v] of tree.entries()){
-    if(v[0].toLowerCase() === addr) return tree.getProof(i);
+  if(currentPhase < 2){      // WL / FCFS
+    try{
+      const dump  = await phase.dump();
+      const tree  = StandardMerkleTree.load(dump.default ?? dump);
+      const [addr] = await walletClient.getAddresses();
+      const idx   = tree.entries().findIndex(([,v])=>v[0].toLowerCase()===addr.toLowerCase());
+      if(idx === -1) throw new Error('not in list');
+      proofCache = tree.getProof(idx);
+      $('proofInfo').textContent = 'Proof: ✅ found';
+    }catch(e){
+      $('proofInfo').textContent = 'Proof: ❌ not whitelisted';
+      $('mintBtn').disabled = true; return;
+    }
+  }else{
+    $('proofInfo').textContent = 'Proof: n/a (Public)';
   }
-  throw new Error("Address not in whitelist");
+  $('mintBtn').disabled=false;
 }
 
-/* -------------------------------------------------
- *  Mint flow
- * ------------------------------------------------*/
-$("mintBtn").onclick = async () => {
-  $("mintBtn").disabled = true;
-  $("mintBtn").textContent = "Sending…";
+/* ---------- minted so far ---------- */
+async function refreshMinted(){
+  const total = await publicClient.readContract({ address:NFT_ADDR, abi:NftAbi, functionName:'totalSupply' });
+  $('mintedCount').textContent = total.toString();
+}
+
+/* ---------- Mint ---------- */
+$('mintBtn').onclick = async ()=>{
+  $('mintBtn').disabled=true; $('mintBtn').textContent='Sending…';
   try{
-    const phaseId = 0;                              // ← UI で切替可能
-    const mon     = phaseId===0 ? WL_PRICE :
-                    phaseId===1 ? FCFS_PRICE : PUB_PRICE;
+    const bps = Number($('bpsIn').value);
+    const price = parseEther(PHASE_JSON[currentPhase].price);
 
-    const tokenCost = ethers.parseEther(mon);
-    const proof     = await getProof(phaseId);
-
-    const txHash = await walletClient.writeContract({
-      address: SWAP_MINT,
-      abi: ["function buyAndMint(uint8,uint16,uint256,bytes32[]) payable"],
-      functionName: "buyAndMint",
-      args: [ phaseId, 300, tokenCost, proof ],
-      value: tokenCost
+    const hash = await walletClient.writeContract({
+      abi:SwapMintAbi,
+      address:SWAPMINT,
+      functionName:'buyAndMint',
+      args:[ currentPhase, bps, price, proofCache ],
+      value:price
     });
-
-    $("mintBtn").textContent = "Pending…";
-    await walletClient.waitForTransactionReceipt({ hash: txHash });
-    alert(`✅ Minted!\nTx ➜ https://testnet.monadexplorer.com/tx/${txHash}`);
-    $("mintedSoFar").textContent =
-      (+$("mintedSoFar").textContent + 1).toString();
-  }catch(e){ window.showFatal(e,"mint"); }
-  finally{
-    $("mintBtn").disabled=false;
-    $("mintBtn").textContent="Mint Now";
-  }
+    $('mintBtn').textContent='Waiting…';
+    await publicClient.waitForTransactionReceipt({ hash });
+    alert(`✅ Tx success!\n${hash}`);
+    await refreshMinted();
+  }catch(e){ window.showFatal(e,'mint'); }
+  finally{ $('mintBtn').textContent='Mint Now'; $('mintBtn').disabled=false; }
 };
