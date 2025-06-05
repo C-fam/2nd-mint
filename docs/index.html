@@ -1,43 +1,53 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>Mouch NFT Mint + Uniswap V2 Swap</title>
+  <title>Uniswap V2 Token Swap</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
   <header>
-    <h1>Mouch NFT Mint (+ Swap)</h1>
+    <h1>Uniswap V2 Token Swap</h1>
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
+
     <div class="btn-group">
       <button id="connectWalletBtn" class="connect-button">Connect Wallet</button>
-      <button id="disconnectBtn"  class="disconnect-button" style="display:none">Disconnect</button>
+      <button id="disconnectBtn" class="disconnect-button" style="display:none">Disconnect</button>
     </div>
   </header>
 
   <main>
-    <section class="mint-container">
-      <h2>Mint &amp; Pay MON</h2>
-      <p>Minted: <span id="mintedSoFar">--</span> / 150</p>
-      <button id="mintBtn" class="mint-button" disabled>Mint Now</button>
+    <section class="swap-container">
+      <h2>Swap Tokens</h2>
+      <div class="token-input-group">
+        <label for="tokenAAmount">Swap From (Token A):</label>
+        <input type="number" id="tokenAAmount" placeholder="Amount of Token A" />
+        <small>Your Token A Balance: <span id="tokenABalance">--</span></small>
+      </div>
+      <div class="token-input-group">
+        <label for="tokenBAddress">To (Token B Address):</label>
+        <input type="text" id="tokenBAddress" placeholder="Enter Token B Contract Address" />
+        <small>You will receive approximately: <span id="expectedOutput">--</span> Token B</small>
+      </div>
+      
+      <p id="swapStatus" class="status-message"></p>
+      <button id="approveBtn" class="action-button" disabled>Approve Token A</button>
+      <button id="swapBtn" class="action-button" disabled style="margin-top: 10px;">Swap Now</button>
     </section>
   </main>
 
-  <footer><p>© 2025 Cʼs Family</p></footer>
+  <footer><p>© 2025 C's Family</p></footer>
 
-  <!-- Node グローバル汚染対策 -->
-  <script>window.global=window;window.process={env:{}};</script>
+  <script>window.global=window;window.process={env:{}};window.require=()=>({});</script>
 
-  <!-- Web3Modal v2 UMD -->
-  <script src="https://cdn.jsdelivr.net/npm/@web3modal/standalone@2.4.3/dist/index.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 
-  <!-- エラー表示ユーティリティ（既存） -->
-  <script src="errorReporter.js"></script>
+  <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
+  <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
 
-  <!-- アプリ本体 -->
   <script type="module" src="script.js"></script>
+  <script src="errorReporter.js"></script>
 </body>
 </html>
