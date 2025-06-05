@@ -1,53 +1,42 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Uniswap V2 Token Swap</title>
+  <title>Mouch NFT – Mint & Swap</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="styles.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <header>
-    <h1>Uniswap V2 Token Swap</h1>
+    <h1>Mouch NFT Mint + Swap</h1>
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
-
-    <div class="btn-group">
-      <button id="connectWalletBtn" class="connect-button">Connect Wallet</button>
-      <button id="disconnectBtn" class="disconnect-button" style="display:none">Disconnect</button>
-    </div>
+    <button id="connectBtn"  class="connect-button">Connect</button>
+    <button id="disconnectBtn" class="disconnect-button" style="display:none">Disconnect</button>
   </header>
 
   <main>
-    <section class="swap-container">
-      <h2>Swap Tokens</h2>
-      <div class="token-input-group">
-        <label for="tokenAAmount">Swap From (Token A):</label>
-        <input type="number" id="tokenAAmount" placeholder="Amount of Token A" />
-        <small>Your Token A Balance: <span id="tokenABalance">--</span></small>
-      </div>
-      <div class="token-input-group">
-        <label for="tokenBAddress">To (Token B Address):</label>
-        <input type="text" id="tokenBAddress" placeholder="Enter Token B Contract Address" />
-        <small>You will receive approximately: <span id="expectedOutput">--</span> Token B</small>
-      </div>
-      
-      <p id="swapStatus" class="status-message"></p>
-      <button id="approveBtn" class="action-button" disabled>Approve Token A</button>
-      <button id="swapBtn" class="action-button" disabled style="margin-top: 10px;">Swap Now</button>
+    <!-- Phase selector -->
+    <section class="mint-container">
+      <h2>Select Phase</h2>
+      <label><input type="radio" name="phase" value="0" checked> WL</label>
+      <label><input type="radio" name="phase" value="1"> FCFS</label>
+      <label><input type="radio" name="phase" value="2"> Public</label>
+
+      <p>Price: <span id="priceMon">--</span> MON</p>
+      <p>Minted: <span id="mintedCount">--</span>/<span id="cap">--</span></p>
+      <p id="proofInfo">Proof: <em>not checked</em></p>
+
+      <label>Slippage (‰):
+        <input type="number" id="bpsIn" value="30" min="1" max="1000" style="width:80px">
+      </label>
+
+      <button id="mintBtn" class="mint-button" disabled>Mint Now</button>
     </section>
   </main>
 
-  <footer><p>© 2025 C's Family</p></footer>
+  <footer><p>© 2025 C Family</p></footer>
 
-  <script>window.global=window;window.process={env:{}};window.require=()=>({});</script>
-
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-
-  <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
-  <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
-
-  <script type="module" src="script.js"></script>
-  <script src="errorReporter.js"></script>
+  <script type="module" src="/script.js"></script>
+  <script src="/errorReporter.js"></script>
 </body>
 </html>
