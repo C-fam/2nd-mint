@@ -12,7 +12,6 @@
   <header>
     <h1>Mouch NFT Mint (+ Swap)</h1>
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
-
     <div class="btn-group">
       <button id="connectWalletBtn" class="connect-button">Connect Wallet</button>
       <button id="disconnectBtn"  class="disconnect-button" style="display:none">Disconnect</button>
@@ -29,16 +28,16 @@
 
   <footer><p>© 2025 Cʼs Family</p></footer>
 
-  <!-- Node グローバル汚染回避 -->
+  <!-- Node グローバル汚染対策 -->
   <script>window.global=window;window.process={env:{}};</script>
 
-  <!-- Web3Modal v2 (stand-alone UMD) -->
+  <!-- Web3Modal v2 UMD -->
   <script src="https://cdn.jsdelivr.net/npm/@web3modal/standalone@2.4.3/dist/index.umd.js"></script>
 
-  <!-- エラー表示ユーティリティ -->
+  <!-- エラー表示ユーティリティ（既存） -->
   <script src="errorReporter.js"></script>
 
-  <!-- アプリ本体（ESM） -->
+  <!-- アプリ本体 -->
   <script type="module" src="script.js"></script>
 </body>
 </html>
