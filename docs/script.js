@@ -15,7 +15,7 @@ const { StandardMerkleTree }        = window.viem;           // re-export from v
 
 /* ---------- wallet setup ---------- */
 let signer, walletClient;
-const web3Modal = new window.Web3Modal.default({              // v2
+const web3Modal = new window.Web3Modal({                      // v2
   cacheProvider:false,
   walletConnectProjectId:"demo"                               // ← 独自プロジェクト ID 推奨
 });
