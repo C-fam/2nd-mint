@@ -10,12 +10,12 @@
 
 <body>
   <header>
-    <h1>Mouch NFT Mint (+ Uniswap Swap)</h1>
+    <h1>Mouch NFT Mint (+ Swap)</h1>
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
 
     <div class="btn-group">
-      <button id="connectWalletBtn"  class="connect-button">Connect Wallet</button>
-      <button id="disconnectBtn"     class="disconnect-button" style="display:none">Disconnect</button>
+      <button id="connectWalletBtn" class="connect-button">Connect Wallet</button>
+      <button id="disconnectBtn"  class="disconnect-button" style="display:none">Disconnect</button>
     </div>
   </header>
 
@@ -29,25 +29,16 @@
 
   <footer><p>© 2025 Cʼs Family</p></footer>
 
-  <!-- Prevent Node-only globals from breaking CDN bundles -->
+  <!-- Node グローバル汚染回避 -->
   <script>window.global=window;window.process={env:{}};</script>
 
-  <!-- ethers v6 UMD bundle (jsDelivr) -->     <!-- docs turn0search3 -->
-  <script src="https://cdn.jsdelivr.net/npm/ethers@6/+esm"></script>
-
-  <!-- viem ESM via esm.sh -->                 <!-- docs turn0search2 -->
-  <script type="module">
-    import * as viem from 'https://esm.sh/viem@2.29.4';
-    window.viem = viem;
-  </script>                                   
-
-  <!-- web3modal v2 stand-alone UMD -->
+  <!-- Web3Modal v2 (stand-alone UMD) -->
   <script src="https://cdn.jsdelivr.net/npm/@web3modal/standalone@2.4.3/dist/index.umd.js"></script>
 
-  <!-- DApp logic -->
-  <script type="module" src="script.js"></script>
-
-  <!-- On-screen fatal-error helper -->
+  <!-- エラー表示ユーティリティ -->
   <script src="errorReporter.js"></script>
+
+  <!-- アプリ本体（ESM） -->
+  <script type="module" src="script.js"></script>
 </body>
 </html>
