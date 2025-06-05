@@ -31,7 +31,7 @@ const $ = id => document.getElementById(id);
 /* -------------------------------------------------
  *  Web3Modal v2 インスタンス
  * ------------------------------------------------*/
-const web3Modal = new window.Web3Modal({
+const web3Modal = window.Web3Modal({
   projectId: WC_PROJECT_ID,
   walletProviders: [
     'walletConnect', 'metamask', 'rabby', 'phantom',
